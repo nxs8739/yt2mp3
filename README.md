@@ -11,6 +11,8 @@ A simple Flask web application that converts YouTube videos to MP3 files using y
 
 ## Installation
 
+### Option 1: Clone with Git
+
 Clone the repository:
 
 ```bash
@@ -18,7 +20,19 @@ git clone https://github.com/nxs8739/yt2mp3.git
 cd yt2mp3
 ```
 
-**The remaining installation commands should be run from inside the `yt2mp3` directory.**
+### Option 2: Download a Release
+
+Download the latest release ZIP from the **Releases** section and extract it.
+
+GitHub will create a directory based on the release version, such as:
+
+```text
+yt2mp3-1.0/
+```
+
+Open a terminal inside the extracted project directory.
+
+**All remaining installation commands should be run from inside the project directory.**
 
 ### Install FFmpeg
 
@@ -31,7 +45,7 @@ sudo apt install ffmpeg
 
 ### Set Up Python
 
-Create the virtual environment **inside the `yt2mp3` directory**:
+Create the virtual environment **inside the project directory**:
 
 ```bash
 python3 -m venv venv
@@ -52,7 +66,7 @@ python -m pip install -r requirements.txt
 
 ### Make the Launcher Executable
 
-Still inside the `yt2mp3` directory:
+Still inside the project directory:
 
 ```bash
 chmod +x start.sh
