@@ -1,30 +1,29 @@
 # YT2MP3
 
-A small, self-hosted Flask application for converting YouTube videos to MP3 using `yt-dlp` and FFmpeg.
+A simple self-hosted YouTube-to-MP3 converter built with Flask, yt-dlp, and FFmpeg.
 
-YT2MP3 is designed for simple local or self-hosted deployment without a database, job queue, or other external services.
+YT2MP3 is designed for small local or self-hosted deployments. It does not require a database, job queue, or other external services.
 
 ## Features
 
 * Convert YouTube videos to MP3
 * 192 kbps MP3 output
-* Uses `yt-dlp` for downloading
+* Uses yt-dlp for downloading
 * Uses FFmpeg for audio conversion
 * Simple Flask web interface
 * Automatic temporary-file cleanup
-* Per-job directory isolation
+* Unique per-job directories
 * Resource and storage limits
 * Request rate limiting
 * Concurrent-job limits
-* Cloudflare Tunnel client-IP support
+* Cloudflare Tunnel client IP support
 * No database required
 
 ## Requirements
 
-* Linux recommended
 * Python 3
 * FFmpeg
-* `git` (if cloning the repository)
+* Git (if cloning the repository)
 * Internet access
 
 Ubuntu/Debian:
@@ -36,17 +35,60 @@ sudo apt install python3 python3-venv ffmpeg git
 
 ## Installation
 
-Clone the repository:
+### Option 1: Clone with Git
 
 ```bash
 git clone https://github.com/nxs8739/yt2mp3.git
 cd yt2mp3
 ```
 
-Create a Python virtual environment:
+### Option 2: Download a Release
+
+You can download YT2MP3 without using Git.
+
+Open the project's **Releases** page on GitHub and download the latest release.
+
+Under **Assets**, GitHub provides:
+
+* **Source code (zip)**
+* **Source code (tar.gz)**
+
+For example, a v1.1 release download extracts into a directory named:
+
+```text
+yt2mp3-1.1/
+```
+
+A v1.2 release will similarly use:
+
+```text
+yt2mp3-1.2/
+```
+
+After extracting the archive, open a terminal inside the extracted project directory.
+
+The directory should contain files such as:
+
+```text
+app.py
+requirements.txt
+start.sh
+templates/
+```
+
+The remaining installation commands below should be run from this directory.
+
+## Python Virtual Environment
+
+Create a virtual environment:
 
 ```bash
 python3 -m venv venv
+```
+
+Activate it:
+
+```bash
 source venv/bin/activate
 ```
 
@@ -56,13 +98,13 @@ Upgrade pip:
 python -m pip install --upgrade pip
 ```
 
-Install the current `yt-dlp` release into the virtual environment:
+Install yt-dlp into the project's virtual environment:
 
 ```bash
 python -m pip install --upgrade yt-dlp
 ```
 
-Install the remaining Python dependencies:
+Install the remaining dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -70,71 +112,69 @@ python -m pip install -r requirements.txt
 
 ### Why install yt-dlp separately?
 
-Ubuntu and Debian repositories can provide an older version of `yt-dlp`.
+Ubuntu and Debian repositories can provide an older version of yt-dlp.
 
-YT2MP3 therefore installs `yt-dlp` directly into its Python virtual environment so the application uses the current Python package rather than relying on the operating system's packaged version.
+YT2MP3 installs yt-dlp directly into the project's Python virtual environment so the application does not depend on the version supplied by the operating system's package repository.
 
-If your system uses an externally managed Python environment, the virtual environment installation above avoids modifying the system Python installation.
-
-A separate user-level installation is also possible if desired:
+A separate user-level installation is also possible:
 
 ```bash
 python3 -m pip install --user --upgrade yt-dlp
 ```
 
-The application itself still uses the copy installed inside `venv`.
+This is optional. The application uses the copy installed inside its virtual environment.
 
-## Running YT2MP3
+## Starting YT2MP3
 
-Activate the virtual environment:
-
-```bash
-source venv/bin/activate
-```
-
-Run the application:
+Make the launcher executable:
 
 ```bash
-python app.py
+chmod +x start.sh
 ```
 
-By default, YT2MP3 listens on:
-
-```text
-127.0.0.1:5001
-```
-
-The host and port can be changed with environment variables:
-
-```bash
-HOST=127.0.0.1 PORT=5001 python app.py
-```
-
-### start.sh
-
-The included `start.sh` launcher can also be used:
+Then run:
 
 ```bash
 ./start.sh
 ```
 
-The launcher is intended to make starting the application convenient on systems with a terminal.
+The application listens on:
+
+```text
+http://127.0.0.1:5001
+```
+
+You can also start it directly:
+
+```bash
+source venv/bin/activate
+python app.py
+```
+
+By default, Flask listens only on `127.0.0.1`.
+
+The host and port can be changed using environment variables:
+
+```bash
+HOST=127.0.0.1 PORT=5001 python app.py
+```
 
 ## Job Lifecycle
 
-Each conversion receives its own randomly generated job directory.
+Each conversion receives its own randomly generated job directory inside `downloads/`.
 
-While conversion is running:
+While a conversion is running, the job contains an `.active` marker.
 
 ```text
-downloads/<job-id>/
-├── .active
-└── source.<format>
+downloads/
+└── <job-id>/
+    ├── .active
+    └── source.<format>
 ```
 
-The `.active` file indicates that the conversion is currently in progress.
+`.active` now represents **conversion in progress only**.
 
-Once conversion finishes successfully:
+When conversion successfully finishes:
 
 1. The MP3 is prepared for download.
 2. The download response is created.
@@ -142,19 +182,23 @@ Once conversion finishes successfully:
 4. The job is considered completed.
 5. The completed job directory is automatically deleted after 2 minutes.
 
-The application does not wait for the browser to finish receiving the file before marking the job completed.
+YT2MP3 does not wait for the browser to report that the file has completely finished downloading.
 
-### Stuck or abandoned jobs
+### Active Jobs
 
-An active job cannot remain indefinitely.
+Active jobs have a maximum lifetime of 10 minutes.
 
-Active jobs have a maximum lifetime of 10 minutes. Jobs that exceed this limit are terminated and eventually removed by the cleanup process.
+If a conversion exceeds this limit, the worker process is terminated and the job is eventually removed by the cleanup system.
 
-The cleanup thread runs periodically, so deletion can occur slightly after the configured interval.
+### Completed Jobs
+
+Completed jobs are retained for 2 minutes before automatic cleanup.
+
+The cleanup process runs periodically, so actual deletion may occur slightly after the configured interval.
 
 ## Resource Limits
 
-YT2MP3 includes multiple safeguards against excessive resource consumption.
+YT2MP3 includes multiple resource controls intended to prevent excessive consumption of server resources.
 
 Default limits:
 
@@ -174,57 +218,53 @@ Default limits:
 | Completed-job cleanup          |               2 minutes |
 | Active-job cleanup ceiling     |              10 minutes |
 
-These values can be overridden with environment variables.
+These limits can be changed using environment variables.
 
-For example:
+## Security & Abuse Protection
 
-```bash
-MAX_CONCURRENT_JOBS=4 python app.py
-```
+YT2MP3 uses several layers of protection against excessive resource consumption from conversion requests.
 
-## Security and Abuse Protection
-
-YT2MP3 is intended to remain lightweight while providing several layers of protection against excessive resource consumption.
-
-Protection includes:
+These include:
 
 * YouTube hostname allowlisting
 * Playlist downloads disabled
 * Per-client request rate limiting
 * Per-client active-job limits
-* Global concurrency limits
+* Concurrent-job limits
 * Maximum video duration
-* Maximum download size
-* Maximum output size
+* Maximum source download size
+* Maximum MP3 output size
 * Maximum per-job storage
 * Maximum global storage
 * Minimum free-disk-space protection
-* Maximum processing time
+* Maximum job lifetime
 * Download progress monitoring
-* Job storage monitoring
+* Storage monitoring
 * Automatic worker termination when limits are exceeded
 * Child-process termination
-* Random per-job directories
-* Sanitized output filenames
-* HTTP request-size limiting
+* Unique per-job directories
+* Sanitized filenames
+* Request body-size limiting
 
 ## Cloudflare Tunnel
 
-YT2MP3 can run behind Cloudflare Tunnel.
+YT2MP3 can be placed behind a Cloudflare Tunnel.
 
-When the direct connection to Flask comes from the trusted local tunnel endpoint, the application can use the `CF-Connecting-IP` header to identify the original client.
+When Flask receives a connection from the trusted local tunnel endpoint, the application can use Cloudflare's `CF-Connecting-IP` header to identify the original client.
 
-Direct clients cannot spoof this header because it is only trusted when the immediate connection comes from the configured trusted proxy address.
+The header is only trusted when the immediate connection comes from the configured trusted proxy address.
 
-By default, the trusted proxy is:
+Direct clients cannot spoof the Cloudflare client IP header.
+
+The default trusted proxy network is:
 
 ```text
 127.0.0.1/32
 ```
 
-If the Cloudflare header is missing or invalid, the application falls back to the direct peer address.
+If the Cloudflare header is missing or invalid, YT2MP3 falls back to the direct connection address.
 
-## Storage
+## Temporary Files
 
 Temporary conversion files are stored under:
 
@@ -232,64 +272,63 @@ Temporary conversion files are stored under:
 downloads/
 ```
 
-Each conversion receives a unique directory.
+Each conversion uses a unique directory.
 
-Completed jobs are automatically removed after the configured post-download cleanup interval.
+Completed job directories are automatically removed after 2 minutes.
 
-The default cleanup interval for completed jobs is:
+Active jobs are protected from normal completed-job cleanup while conversion is running, but cannot remain active indefinitely because of the 10-minute maximum job lifetime.
 
-```text
-120 seconds
-```
-
-Active jobs have a separate hard cleanup ceiling of:
-
-```text
-600 seconds
-```
-
-No database or persistent job storage is used.
+No database or persistent conversion history is used.
 
 ## Limitations
 
 YT2MP3 currently:
 
 * Supports YouTube URLs only
+* Does not support playlists
 * Produces MP3 audio
 * Produces 192 kbps MP3 files
-* Does not support playlists
 * Limits videos to 8 minutes by default
-* Uses local temporary storage
+* Uses temporary local storage
 * Does not provide user accounts
 * Does not provide persistent conversion history
-* Does not determine whether a browser has completely finished downloading a file
+* Does not track whether a browser has completely finished downloading a file
 
-The application is intended for small, self-hosted deployments rather than large public conversion services.
+YT2MP3 is intended for small local or self-hosted deployments rather than large public conversion services.
 
-## Third-Party Software
+## Dependencies
 
-YT2MP3 relies on:
+YT2MP3 uses:
 
 * Flask
 * yt-dlp
 * FFmpeg
 
-`yt-dlp` handles media retrieval while FFmpeg performs the audio conversion.
+yt-dlp handles media downloading and FFmpeg performs the audio conversion.
 
 ## Upgrading
 
-From v1.1, update the application files and dependencies as needed.
+When upgrading from an earlier release, update the application files and dependencies.
 
-If using the existing virtual environment:
+Activate the virtual environment:
 
 ```bash
 source venv/bin/activate
-python -m pip install --upgrade pip
+```
+
+Update yt-dlp:
+
+```bash
 python -m pip install --upgrade yt-dlp
+```
+
+Update the Python dependencies:
+
+```bash
 python -m pip install -r requirements.txt
 ```
 
-No database migration or persistent-data migration is required.
+No database migration or other persistent-data migration is required.
 
 ## License
 
