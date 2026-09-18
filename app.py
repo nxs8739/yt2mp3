@@ -18,6 +18,9 @@ BASE_DIR = Path(__file__).resolve().parent
 DOWNLOAD_DIR = BASE_DIR / "downloads"
 
 CLEANUP_SECONDS = int(os.getenv("CLEANUP_SECONDS", "600"))
+POST_DOWNLOAD_CLEANUP_SECONDS = int(
+    os.getenv("POST_DOWNLOAD_CLEANUP_SECONDS", "120")
+)
 HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "5001"))
 
@@ -25,7 +28,6 @@ MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "2"))
 MAX_ACTIVE_JOBS_PER_CLIENT = int(
     os.getenv("MAX_ACTIVE_JOBS_PER_CLIENT", "1")
 )
-
 MAX_JOB_SECONDS = int(os.getenv("MAX_JOB_SECONDS", "600"))
 
 MAX_DOWNLOAD_SIZE = int(
@@ -240,21 +242,32 @@ def cleanup_old_files():
                 if not job_dir.is_dir():
                     continue
 
-                if (job_dir / ".active").exists():
-                    continue
-
                 try:
-                    if (
-                        now - job_dir.stat().st_mtime
-                        >= CLEANUP_SECONDS
-                    ):
+                    age = now - job_dir.stat().st_mtime
+                    active = (job_dir / ".active").exists()
+
+                    if active:
+                        if age >= CLEANUP_SECONDS:
+                            shutil.rmtree(
+                                job_dir,
+                                ignore_errors=True,
+                            )
+
+                            app.logger.info(
+                                "Deleted expired active job: %s",
+                                job_dir.name,
+                            )
+
+                        continue
+
+                    if age >= POST_DOWNLOAD_CLEANUP_SECONDS:
                         shutil.rmtree(
                             job_dir,
                             ignore_errors=True,
                         )
 
                         app.logger.info(
-                            "Deleted expired job: %s",
+                            "Deleted expired completed job: %s",
                             job_dir.name,
                         )
 
@@ -751,19 +764,12 @@ def index():
     active = job_dir / ".active"
     active.touch()
 
-    response_created = False
+    job_released = False
 
     try:
         mp3_path, title = convert_to_mp3(
             url,
             job_dir,
-        )
-
-        now = time.time()
-
-        os.utime(
-            job_dir,
-            (now, now),
         )
 
         response = send_file(
@@ -773,33 +779,25 @@ def index():
             mimetype="audio/mpeg",
         )
 
-        response_created = True
-
-        def finish_download():
-            active.unlink(
-                missing_ok=True
-            )
-
-            try:
-                now = time.time()
-
-                os.utime(
-                    job_dir,
-                    (now, now),
-                )
-
-            except (
-                FileNotFoundError,
-                PermissionError,
-                OSError,
-            ):
-                pass
-
-            release_job(client_ip)
-
-        response.call_on_close(
-            finish_download
+        # Conversion is complete and the response has been created.
+        # The job is now considered completed.
+        #
+        # .active is only used while conversion is actually running.
+        # Cleanup will remove this completed directory after the
+        # post-download cleanup interval.
+        active.unlink(
+            missing_ok=True
         )
+
+        now = time.time()
+
+        os.utime(
+            job_dir,
+            (now, now),
+        )
+
+        release_job(client_ip)
+        job_released = True
 
         return response
 
@@ -852,7 +850,7 @@ def index():
         )
 
     finally:
-        if not response_created:
+        if not job_released:
             active.unlink(
                 missing_ok=True
             )
