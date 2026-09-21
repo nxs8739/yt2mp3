@@ -19,12 +19,32 @@ YT2MP3 is designed for small local or self-hosted deployments. It does not requi
 * Cloudflare Tunnel client IP support
 * No database required
 
+## Platform
+
+YT2MP3 is designed primarily around a local Ubuntu/Debian desktop environment.
+
+The README and included `start.sh` launcher are specifically tailored for Ubuntu/Debian-based Linux systems with a graphical desktop and terminal emulator.
+
+The Flask application itself does not require a graphical interface and can be run manually on a headless Linux system. However, configuring YT2MP3 as a persistent system service or other automatic headless deployment is outside the scope of this project.
+
+YT2MP3 may also be adaptable to other Linux distributions or Windows, but those platforms are not officially supported by this project.
+
+If adapting YT2MP3 for another environment, the installation instructions and `start.sh` may need to be modified accordingly.
+
 ## Requirements
 
+For the standard desktop setup:
+
+* Ubuntu/Debian-based Linux
+* Graphical desktop environment
+* Terminal emulator
 * Python 3
+* Python virtual environment support
+* pip
 * FFmpeg
 * Git (if cloning the repository)
 * Internet access
+* A YouTube URL
 
 Ubuntu/Debian:
 
@@ -32,6 +52,8 @@ Ubuntu/Debian:
 sudo apt update
 sudo apt install python3 python3-venv ffmpeg git
 ```
+
+This installs Python 3, virtual environment support, FFmpeg, and Git.
 
 ## Installation
 
@@ -76,7 +98,7 @@ start.sh
 templates/
 ```
 
-The remaining installation commands below should be run from this directory.
+All remaining installation commands should be run from inside this project directory.
 
 ## Python Virtual Environment
 
@@ -104,7 +126,7 @@ Install yt-dlp into the project's virtual environment:
 python -m pip install --upgrade yt-dlp
 ```
 
-Install the remaining dependencies:
+Install the remaining Python dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
@@ -116,15 +138,67 @@ Ubuntu and Debian repositories can provide an older version of yt-dlp.
 
 YT2MP3 installs yt-dlp directly into the project's Python virtual environment so the application does not depend on the version supplied by the operating system's package repository.
 
-A separate user-level installation is also possible:
+Verify the version being used by the virtual environment:
+
+```bash
+python -m yt_dlp --version
+```
+
+This is the yt-dlp installation that YT2MP3 uses.
+
+### Optional: Install yt-dlp for Your User
+
+The virtual-environment installation above is all YT2MP3 requires.
+
+If you also want to use the current yt-dlp directly from your terminal outside YT2MP3, you can optionally install it for your Linux user:
 
 ```bash
 python3 -m pip install --user --upgrade yt-dlp
 ```
 
-This is optional. The application uses the copy installed inside its virtual environment.
+The `--user` option installs yt-dlp into your personal user environment rather than modifying the system-wide Python installation.
 
-## Starting YT2MP3
+It normally places the executable under:
+
+```text
+~/.local/bin/yt-dlp
+```
+
+Verify it with:
+
+```bash
+~/.local/bin/yt-dlp --version
+```
+
+You can also try:
+
+```bash
+yt-dlp --version
+```
+
+If the command is not found without the full path, `~/.local/bin` may not be included in your `PATH`.
+
+### Ubuntu/Debian pip Restrictions
+
+Some newer Ubuntu/Debian releases protect the system Python environment using the externally managed environment mechanism.
+
+On those systems, the optional `--user` installation may be rejected with an error similar to:
+
+```text
+error: externally-managed-environment
+```
+
+This protection prevents pip from unintentionally modifying packages managed by the operating system.
+
+Do not use `--break-system-packages` simply to bypass this error unless you understand the consequences.
+
+The optional system/user installation is not required by YT2MP3. If your distribution rejects it, simply skip this optional step.
+
+The yt-dlp installation inside the YT2MP3 virtual environment is isolated from the system Python and is the version used by the application.
+
+## Desktop Usage
+
+The included `start.sh` launcher is intended for graphical Linux desktop environments.
 
 Make the launcher executable:
 
@@ -132,32 +206,128 @@ Make the launcher executable:
 chmod +x start.sh
 ```
 
-Then run:
+Start YT2MP3 from the project directory:
 
 ```bash
 ./start.sh
 ```
 
-The application listens on:
+The launcher automatically detects a supported terminal emulator, activates the project's Python virtual environment, and starts the Flask application.
+
+Once started, open:
 
 ```text
 http://127.0.0.1:5001
 ```
 
-You can also start it directly:
+Enter a YouTube URL and click **Convert**.
+
+By default, Flask listens only on `127.0.0.1`, meaning the application is available only from the local computer unless its network configuration is intentionally changed.
+
+### Starting YT2MP3 Again After Quitting
+
+The Python virtual environment is only active for the terminal session in which it was activated.
+
+If you close the YT2MP3 terminal or stop the application, the virtual environment is no longer active in a new terminal session.
+
+If you use the launcher, simply run:
+
+```bash
+./start.sh
+```
+
+again.
+
+`start.sh` handles activation automatically.
+
+If you start the application manually instead, you must activate the virtual environment before starting YT2MP3:
 
 ```bash
 source venv/bin/activate
 python app.py
 ```
 
-By default, Flask listens only on `127.0.0.1`.
+The important part is:
+
+```bash
+source venv/bin/activate
+```
+
+Run that command from inside the YT2MP3 project directory before manually starting the application.
+
+You can tell that the virtual environment is active when the terminal prompt normally shows `(venv)`.
+
+For example:
+
+```text
+(venv) user@computer:~/yt2mp3$
+```
+
+Once the environment is activated, use:
+
+```bash
+python app.py
+```
+
+Do not rely on a system-installed yt-dlp when manually starting YT2MP3. The application is intended to use the packages installed inside its project virtual environment.
+
+### Stopping YT2MP3
+
+If YT2MP3 is running in a terminal, press:
+
+```text
+Ctrl+C
+```
+
+This stops the Flask application.
+
+The terminal can then be closed.
+
+When you want to use YT2MP3 again later, start it with:
+
+```bash
+./start.sh
+```
+
+or manually reactivate the environment and run:
+
+```bash
+source venv/bin/activate
+python app.py
+```
+
+No separate activation or permanent system installation is required between sessions.
+
+## Manual / Headless Run
+
+The included `start.sh` launcher is intended for desktop environments with a graphical terminal emulator.
+
+The Flask application itself does not require a graphical interface.
+
+On a headless Linux system, YT2MP3 can be started manually from the project directory:
+
+```bash
+source venv/bin/activate
+python app.py
+```
+
+The application will listen on:
+
+```text
+127.0.0.1:5001
+```
+
+By default.
 
 The host and port can be changed using environment variables:
 
 ```bash
 HOST=127.0.0.1 PORT=5001 python app.py
 ```
+
+For example, a headless server may intentionally bind Flask to another interface if remote access is required.
+
+Configuring YT2MP3 to run automatically as a system service, through systemd, Docker, or another persistent service manager is outside the scope of this project.
 
 ## Job Lifecycle
 
@@ -172,7 +342,7 @@ downloads/
     └── source.<format>
 ```
 
-`.active` now represents **conversion in progress only**.
+`.active` represents **conversion in progress only**.
 
 When conversion successfully finishes:
 
@@ -293,6 +463,9 @@ YT2MP3 currently:
 * Does not provide user accounts
 * Does not provide persistent conversion history
 * Does not track whether a browser has completely finished downloading a file
+* Is primarily documented for Ubuntu/Debian-based Linux systems
+* Includes a launcher designed for graphical desktop environments
+* Is not officially supported on Windows or other Linux distributions
 
 YT2MP3 is intended for small local or self-hosted deployments rather than large public conversion services.
 
@@ -304,13 +477,19 @@ YT2MP3 uses:
 * yt-dlp
 * FFmpeg
 
-yt-dlp handles media downloading and FFmpeg performs the audio conversion.
+Flask provides the web application framework.
+
+yt-dlp handles media downloading.
+
+FFmpeg performs the audio conversion.
+
+These dependencies remain separate from YT2MP3 and are installed through the appropriate system package manager or Python virtual environment.
 
 ## Upgrading
 
 When upgrading from an earlier release, update the application files and dependencies.
 
-Activate the virtual environment:
+From inside the YT2MP3 project directory, activate the virtual environment:
 
 ```bash
 source venv/bin/activate
@@ -329,6 +508,19 @@ python -m pip install -r requirements.txt
 ```
 
 No database migration or other persistent-data migration is required.
+
+After upgrading, YT2MP3 can be started normally:
+
+```bash
+./start.sh
+```
+
+Or manually:
+
+```bash
+source venv/bin/activate
+python app.py
+```
 
 ## License
 
